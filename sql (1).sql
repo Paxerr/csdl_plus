@@ -10,7 +10,7 @@ CREATE TABLE KhachHang (
     TenKhachHang NVARCHAR(100) NOT NULL,
     HoKhachHang NVARCHAR(100) NOT NULL,
     SoDienThoai VARCHAR(20) UNIQUE,
-    Email VARCHAR(100) UNIQUE,
+    Email NVARCHAR(100) UNIQUE,
     MaCccd VARCHAR(50),
     NgayTao DATETIME DEFAULT GETDATE()
 );
@@ -26,9 +26,9 @@ ON KhachHang(Email);
 -- Tạo bảng Phong
 CREATE TABLE Phong (
     MaPhong INT IDENTITY(1,1) PRIMARY KEY,  -- Clustered index mặc định trên PK
-    LoaiPhong VARCHAR(50) NOT NULL,
+    LoaiPhong NVARCHAR(50) NOT NULL,
     GiaPhong DECIMAL(18,2) NOT NULL,
-    TrangThai VARCHAR(50) NOT NULL,  -- Ví dụ: 'Trống', 'Đang đặt', 'Đang sử dụng', 'Bảo trì'
+    TrangThai NVARCHAR(50) NOT NULL,  -- Ví dụ: 'Trống', 'Đang đặt', 'Đang sử dụng', 'Bảo trì'
     MoTa NVARCHAR(500)
 );
 
@@ -50,8 +50,8 @@ CREATE TABLE HoaDon (
     MaHoaDon INT IDENTITY(1,1) PRIMARY KEY,  -- Clustered index mặc định trên PK
     MaKhachHang INT NOT NULL,
     TongHoaDon DECIMAL(18,2) NOT NULL,
-    TrangThai VARCHAR(50) NOT NULL,  -- Ví dụ: 'Đang xử lý', 'Hoàn tất', 'Hủy'
-    PhuongThuc VARCHAR(50) NOT NULL,  -- Ví dụ: 'Tiền mặt', 'Chuyển khoản', 'Thẻ'
+    TrangThai NVARCHAR(50) NOT NULL,  -- Ví dụ: 'Đang xử lý', 'Hoàn tất', 'Hủy'
+    PhuongThuc NVARCHAR(50) NOT NULL,  -- Ví dụ: 'Tiền mặt', 'Chuyển khoản', 'Thẻ'
     NgayThanhToan DATETIME,
     FOREIGN KEY (MaKhachHang) REFERENCES KhachHang(MaKhachHang)
 );
@@ -77,7 +77,7 @@ CREATE TABLE DatPhong (
     NgayTra DATETIME NOT NULL,
     MaHoaDon INT NULL,  -- NULL khi chưa thanh toán
     DatCoc DECIMAL(18,2) DEFAULT 0,
-    TrangThai VARCHAR(50) NOT NULL,  -- Ví dụ: 'Đã đặt', 'Hủy', 'Check-in', 'Check-out'
+    TrangThai NVARCHAR(50) NOT NULL,  -- Ví dụ: 'Đã đặt', 'Hủy', 'Check-in', 'Check-out'
     FOREIGN KEY (MaKhachHang) REFERENCES KhachHang(MaKhachHang),
     FOREIGN KEY (MaPhong) REFERENCES Phong(MaPhong),
     FOREIGN KEY (MaHoaDon) REFERENCES HoaDon(MaHoaDon)
