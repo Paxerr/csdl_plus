@@ -95,7 +95,15 @@ ON DatPhong(NgayDat);
 CREATE NONCLUSTERED INDEX idx_DatPhong_MaPhong
 ON DatPhong(MaPhong);
 
-
+-- Tạo bảng Nhatki
+   CREATE TABLE dbo.NhatKy (
+    MaNhatKy INT IDENTITY(1,1) PRIMARY KEY,  
+    MaBanGhi NVARCHAR(200),                  
+    TenBang NVARCHAR(100),                    
+    TacVu NVARCHAR(20),                     
+    ThoiDiem DATETIME DEFAULT GETDATE()      
+);
+GO
 
 
 --insert data
@@ -2535,53 +2543,57 @@ GO
 
 
 --Tringger
-IF OBJECT_ID(N'dbo.trg_GhiNhatKy_DatPhong', N'TR') IS NOT NULL 
-    DROP TRIGGER dbo.trg_GhiNhatKy_DatPhong;
-GO
-CREATE TRIGGER dbo.trg_GhiNhatKy_DatPhong
+CREATE TRIGGER dbo.trg_NhatKy_DatPhong
 ON DatPhong
 AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    --Them
-    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
-    SELECT N'DatPhong', N'Chèn', CAST(i.MaDatPhong AS NVARCHAR(50)), GETDATE()
-    FROM inserted i;
-    --Sua
-    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
-    SELECT N'DatPhong', N'Cập nhật', CAST(i.MaDatPhong AS NVARCHAR(50)), GETDATE()
+    -- Thêm
+    INSERT INTO NhatKy (MaBanGhi, TenBang, TacVu, ThoiDiem)
+    SELECT CAST(i.MaDatPhong AS NVARCHAR(200)), N'DatPhong', N'Thêm mới', GETDATE()
+    FROM inserted i
+    LEFT JOIN deleted d ON i.MaDatPhong = d.MaDatPhong
+    WHERE d.MaDatPhong IS NULL;
+    -- Sửa
+    INSERT INTO NhatKy (MaBanGhi, TenBang, TacVu, ThoiDiem)
+    SELECT CAST(i.MaDatPhong AS NVARCHAR(200)), N'DatPhong', N'Cập nhật', GETDATE()
     FROM inserted i
     INNER JOIN deleted d ON i.MaDatPhong = d.MaDatPhong;
-    --Xoa
-    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
-    SELECT N'DatPhong', N'Xoá', CAST(d.MaDatPhong AS NVARCHAR(50)), GETDATE()
-    FROM deleted d;
+    -- Xóa
+    INSERT INTO NhatKy (MaBanGhi, TenBang, TacVu, ThoiDiem)
+    SELECT CAST(d.MaDatPhong AS NVARCHAR(200)), N'DatPhong', N'Xóa', GETDATE()
+    FROM deleted d
+    LEFT JOIN inserted i ON d.MaDatPhong = i.MaDatPhong
+    WHERE i.MaDatPhong IS NULL;
 END;
 GO
 
-IF OBJECT_ID(N'dbo.trg_GhiNhatKy_HoaDon', N'TR') IS NOT NULL 
-    DROP TRIGGER dbo.trg_GhiNhatKy_HoaDon;
-GO
-CREATE TRIGGER dbo.trg_GhiNhatKy_HoaDon
+CREATE TRIGGER dbo.trg_NhatKy_HoaDon
 ON HoaDon
 AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
-    SELECT N'HoaDon', N'Chèn', CAST(i.MaHoaDon AS NVARCHAR(50)), GETDATE()
-    FROM inserted i;
-
-    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
-    SELECT N'HoaDon', N'Cập nhật', CAST(i.MaHoaDon AS NVARCHAR(50)), GETDATE()
+    -- Thêm 
+    INSERT INTO NhatKy (MaBanGhi, TenBang, TacVu, ThoiDiem)
+    SELECT CAST(i.MaHoaDon AS NVARCHAR(200)), N'HoaDon', N'Thêm mới', GETDATE()
+    FROM inserted i
+    LEFT JOIN deleted d ON i.MaHoaDon = d.MaHoaDon
+    WHERE d.MaHoaDon IS NULL;
+    -- Sửa
+    INSERT INTO NhatKy (MaBanGhi, TenBang, TacVu, ThoiDiem)
+    SELECT CAST(i.MaHoaDon AS NVARCHAR(200)), N'HoaDon', N'Cập nhật', GETDATE()
     FROM inserted i
     INNER JOIN deleted d ON i.MaHoaDon = d.MaHoaDon;
-
-    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
-    SELECT N'HoaDon', N'Xoá', CAST(d.MaHoaDon AS NVARCHAR(50)), GETDATE()
-    FROM deleted d;
+    -- Xóa
+    INSERT INTO NhatKy (MaBanGhi, TenBang, TacVu, ThoiDiem)
+    SELECT CAST(d.MaHoaDon AS NVARCHAR(200)), N'HoaDon', N'Xóa', GETDATE()
+    FROM deleted d
+    LEFT JOIN inserted i ON d.MaHoaDon = i.MaHoaDon
+    WHERE i.MaHoaDon IS NULL;
 END;
 GO
+
