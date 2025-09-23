@@ -2126,8 +2126,58 @@ begin
     insert into DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai) VALUES (@MaKhachHang, @MaPhong, @NgayDat, @NgayTra, @DatCoc, @TrangThai)
 end
 
+------------------
+CREATE PROCEDURE sp_ThanhToan
+    @MaKhachHang INT,
+    @PhuongThuc NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
+        DECLARE @TongHoaDon DECIMAL(18,2);
 
+        SELECT @TongHoaDon = SUM(p.GiaPhong * DATEDIFF(DAY, dp.NgayDat, dp.NgayTra))
+        FROM DatPhong dp
+        JOIN Phong p ON dp.MaPhong = p.MaPhong
+        WHERE dp.MaKhachHang = @MaKhachHang
+          AND dp.MaHoaDon IS NULL
+          AND dp.TrangThai = N'Check-in';
+
+        IF @TongHoaDon IS NULL
+        BEGIN
+            RAISERROR(N'Khách hàng không có đặt phòng cần thanh toán.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        INSERT INTO HoaDon(MaKhachHang, TongHoaDon, TrangThai, PhuongThuc, NgayThanhToan)
+        VALUES (@MaKhachHang, @TongHoaDon, N'Hoàn tất', @PhuongThuc, GETDATE());
+
+        DECLARE @MaHoaDon INT = SCOPE_IDENTITY();
+
+        UPDATE DatPhong
+        SET MaHoaDon = @MaHoaDon,
+            TrangThai = N'Check-out'
+        WHERE MaKhachHang = @MaKhachHang
+          AND MaHoaDon IS NULL
+          AND TrangThai = N'Check-in';
+
+        UPDATE Phong
+        SET TrangThai = N'Trống'
+        WHERE MaPhong IN (
+            SELECT MaPhong FROM DatPhong WHERE MaHoaDon = @MaHoaDon
+        );
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
 
 --Function
 CREATE FUNCTION fn_TinhTienDatPhong(@MaHoaDon INT)
@@ -2156,7 +2206,27 @@ BEGIN
 END;
 GO
 
+------------
 
+CREATE FUNCTION fn_KiemTraPhongTrong(@MaPhong INT)
+RETURNS NVARCHAR(50)
+AS
+BEGIN
+    DECLARE @Result NVARCHAR(50);
+
+    IF EXISTS (
+        SELECT 1
+        FROM Phong
+        WHERE MaPhong = @MaPhong
+          AND TrangThai = N'Trống'
+    )
+        SET @Result = N'Phòng đang trống';
+    ELSE
+        SET @Result = N'Phòng không trống';
+
+    RETURN @Result;
+END;
+GO
 
 
 --Tringger
@@ -2196,6 +2266,28 @@ BEGIN
         FROM Inserted;
     END
 END
+
+
+--------------
+CREATE TRIGGER trg_LogThanhToan
+ON HoaDon
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE p
+    SET TrangThai = N'Trống'
+    FROM Phong p
+    WHERE p.MaPhong IN (
+        SELECT dp.MaPhong
+        FROM inserted i
+        JOIN DatPhong dp ON i.MaHoaDon = dp.MaHoaDon
+        WHERE i.TrangThai = N'Hoàn tất'
+    );
+END;
+GO
+
 
 
 
