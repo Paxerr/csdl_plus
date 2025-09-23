@@ -2289,18 +2289,299 @@ END;
 GO
 
 
+    
 
-
+IF OBJECT_ID(N'dbo.sp_CheckIn', N'P') IS NOT NULL DROP PROCEDURE dbo.sp_CheckIn;
+GO
+IF OBJECT_ID(N'dbo.sp_CheckOut', N'P') IS NOT NULL DROP PROCEDURE dbo.sp_CheckOut;
+GO
+IF OBJECT_ID(N'dbo.sp_TinhTongTienHoaDon', N'P') IS NOT NULL DROP PROCEDURE dbo.sp_TinhTongTienHoaDon;
+GO
+IF OBJECT_ID(N'dbo.sp_HuyDatPhong', N'P') IS NOT NULL DROP PROCEDURE dbo.sp_HuyDatPhong;
+GO
+IF OBJECT_ID(N'dbo.fn_TinhTongHoaDon', N'FN') IS NOT NULL DROP FUNCTION dbo.fn_TinhTongHoaDon;
+GO
+IF OBJECT_ID(N'dbo.trg_Audit_DatPhong', N'TR') IS NOT NULL DROP TRIGGER dbo.trg_Audit_DatPhong;
+GO
+IF OBJECT_ID(N'dbo.trg_Audit_HoaDon', N'TR') IS NOT NULL DROP TRIGGER dbo.trg_Audit_HoaDon;
+GO
 --Stored Procedure
+CREATE PROCEDURE sp_CheckIn
+    @MaDatPhong INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        DECLARE @MaPhong INT, @TrangThai NVARCHAR(50);
 
+        SELECT @MaPhong = MaPhong, @TrangThai = TrangThai
+        FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
 
+        IF @MaPhong IS NULL
+        BEGIN
+            RAISERROR(N'Không tìm thấy đặt phòng (MaDatPhong = %d).', 16, 1, @MaDatPhong);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
 
+        IF @TrangThai NOT IN (N'Đã đặt', N'Đã Đặt')
+        BEGIN
+            RAISERROR(N'Chỉ cho phép nhận phòng khi đặt ở trạng thái "Đã đặt". Hiện: %s', 16, 1, @TrangThai);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
 
+        UPDATE DatPhong
+        SET TrangThai = N'Nhận Phòng'
+        WHERE MaDatPhong = @MaDatPhong;
+
+        UPDATE Phong
+        SET TrangThai = N'Đang sử dụng'
+        WHERE MaPhong = @MaPhong;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE PROCEDURE sp_CheckOut
+    @MaDatPhong INT,
+    @PhuongThuc NVARCHAR(50) = N'Tiền mặt'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @MaPhong INT, @MaKhachHang INT, @NgayDat DATETIME, @NgayTra DATETIME, @TrangThai NVARCHAR(50);
+        DECLARE @SoNgay INT, @GiaPhong DECIMAL(18,2), @Tong DECIMAL(18,2), @DatCoc DECIMAL(18,2);
+
+        SELECT @MaPhong = MaPhong, @MaKhachHang = MaKhachHang, @NgayDat = NgayDat, @NgayTra = NgayTra, @TrangThai = TrangThai, @DatCoc = DatCoc
+        FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaPhong IS NULL
+        BEGIN
+            RAISERROR(N'Không tìm thấy đặt phòng (MaDatPhong = %d).', 16, 1, @MaDatPhong);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        IF @TrangThai NOT IN (N'Nhận Phòng', N'Check-in', N'Đang sử dụng')
+        BEGIN
+            RAISERROR(N'Chỉ cho phép trả phòng khi đang ở trạng thái nhận phòng. Hiện: %s', 16, 1, @TrangThai);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        SET @SoNgay = DATEDIFF(DAY, @NgayDat, @NgayTra);
+        IF @SoNgay <= 0 SET @SoNgay = 1;
+
+        SELECT @GiaPhong = GiaPhong FROM Phong WHERE MaPhong = @MaPhong;
+        IF @GiaPhong IS NULL SET @GiaPhong = 0;
+        IF @DatCoc IS NULL SET @DatCoc = 0;
+
+        SET @Tong = ISNULL(@GiaPhong,0) * @SoNgay;
+
+        INSERT INTO HoaDon (MaKhachHang, TongHoaDon, TrangThai, PhuongThuc, NgayThanhToan)
+        VALUES (@MaKhachHang, (@Tong - @DatCoc), N'Hoàn tất', @PhuongThuc, GETDATE());
+
+        DECLARE @MaHoaDon INT = SCOPE_IDENTITY();
+
+        UPDATE DatPhong
+        SET MaHoaDon = @MaHoaDon,
+            TrangThai = N'Check-out'
+        WHERE MaDatPhong = @MaDatPhong;
+
+        UPDATE Phong
+        SET TrangThai = N'Trống'
+        WHERE MaPhong = @MaPhong;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE PROCEDURE sp_TinhTongTienHoaDon
+    @MaHoaDon INT,
+    @CapNhat BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @KetQua DECIMAL(18,2) = 0;
+
+    IF OBJECT_ID(N'dbo.fn_TinhTienDatPhong', N'FN') IS NOT NULL
+    BEGIN
+        SELECT @KetQua = dbo.fn_TinhTienDatPhong(@MaHoaDon);
+    END
+    ELSE
+    BEGIN
+        SELECT @KetQua = ISNULL(SUM(
+            P.GiaPhong *
+            CASE WHEN DATEDIFF(DAY, DP.NgayDat, DP.NgayTra) = 0 THEN 1
+                 ELSE DATEDIFF(DAY, DP.NgayDat, DP.NgayTra)
+            END
+        ),0) - ISNULL((SELECT SUM(DatCoc) FROM DatPhong WHERE MaHoaDon = @MaHoaDon),0)
+        FROM DatPhong DP
+        JOIN Phong P ON DP.MaPhong = P.MaPhong
+        WHERE DP.MaHoaDon = @MaHoaDon;
+    END
+
+    IF @CapNhat = 1
+    BEGIN
+        UPDATE HoaDon SET TongHoaDon = @KetQua WHERE MaHoaDon = @MaHoaDon;
+    END
+
+    SELECT @MaHoaDon AS MaHoaDon, @KetQua AS TongTinhToan;
+END;
+GO
+
+CREATE PROCEDURE sp_HuyDatPhong
+    @MaDatPhong INT,
+    @Force BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @MaPhong INT, @TrangThai NVARCHAR(50), @MaHoaDon INT;
+
+        SELECT @MaPhong = MaPhong, @TrangThai = TrangThai, @MaHoaDon = MaHoaDon
+        FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaPhong IS NULL
+        BEGIN
+            RAISERROR(N'Không tìm thấy đặt phòng (MaDatPhong = %d).', 16, 1, @MaDatPhong);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        IF @TrangThai IN (N'Nhận Phòng', N'Check-in') AND @Force = 0
+        BEGIN
+            RAISERROR(N'Không thể hủy khi đặt phòng đang ở trạng thái nhận phòng. Dùng @Force = 1 để cưỡng chế.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        UPDATE DatPhong
+        SET TrangThai = N'Hủy', MaHoaDon = NULL
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaHoaDon IS NOT NULL
+        BEGIN
+            UPDATE HoaDon
+            SET TrangThai = N'Hủy'
+            WHERE MaHoaDon = @MaHoaDon;
+        END
+
+        UPDATE Phong
+        SET TrangThai = N'Trống'
+        WHERE MaPhong = @MaPhong
+          AND TrangThai IN (N'Đã Đặt', N'Đang sử dụng', N'Nhận Phòng', N'Check-in', N'Đã đặt');
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
 
 --Function
+IF OBJECT_ID(N'dbo.fn_TinhTongHoaDon', N'FN') IS NOT NULL
+    DROP FUNCTION dbo.fn_TinhTongHoaDon;
+GO
 
+CREATE FUNCTION fn_TinhTongHoaDon(@MaHoaDon INT)
+RETURNS DECIMAL(18,2)
+AS
+BEGIN
+    DECLARE @KetQua DECIMAL(18,2) = 0;
 
+    IF OBJECT_ID(N'dbo.fn_TinhTienDatPhong', N'FN') IS NOT NULL
+    BEGIN
+        SELECT @KetQua = dbo.fn_TinhTienDatPhong(@MaHoaDon);
+    END
+    ELSE
+    BEGIN
+        SELECT @KetQua = ISNULL(SUM(
+            P.GiaPhong *
+            CASE WHEN DATEDIFF(DAY, DP.NgayDat, DP.NgayTra) = 0 THEN 1
+                 ELSE DATEDIFF(DAY, DP.NgayDat, DP.NgayTra)
+            END
+        ),0) - ISNULL((SELECT SUM(DatCoc) FROM DatPhong WHERE MaHoaDon = @MaHoaDon),0)
+        FROM DatPhong DP
+        JOIN Phong P ON DP.MaPhong = P.MaPhong
+        WHERE DP.MaHoaDon = @MaHoaDon;
+    END
 
+    RETURN ISNULL(@KetQua, 0);
+END;
+GO
 
 
 --Tringger
+IF OBJECT_ID(N'dbo.trg_GhiNhatKy_DatPhong', N'TR') IS NOT NULL 
+    DROP TRIGGER dbo.trg_GhiNhatKy_DatPhong;
+GO
+CREATE TRIGGER dbo.trg_GhiNhatKy_DatPhong
+ON DatPhong
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    --Them
+    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
+    SELECT N'DatPhong', N'Chèn', CAST(i.MaDatPhong AS NVARCHAR(50)), GETDATE()
+    FROM inserted i;
+    --Sua
+    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
+    SELECT N'DatPhong', N'Cập nhật', CAST(i.MaDatPhong AS NVARCHAR(50)), GETDATE()
+    FROM inserted i
+    INNER JOIN deleted d ON i.MaDatPhong = d.MaDatPhong;
+    --Xoa
+    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
+    SELECT N'DatPhong', N'Xoá', CAST(d.MaDatPhong AS NVARCHAR(50)), GETDATE()
+    FROM deleted d;
+END;
+GO
+
+IF OBJECT_ID(N'dbo.trg_GhiNhatKy_HoaDon', N'TR') IS NOT NULL 
+    DROP TRIGGER dbo.trg_GhiNhatKy_HoaDon;
+GO
+CREATE TRIGGER dbo.trg_GhiNhatKy_HoaDon
+ON HoaDon
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
+    SELECT N'HoaDon', N'Chèn', CAST(i.MaHoaDon AS NVARCHAR(50)), GETDATE()
+    FROM inserted i;
+
+    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
+    SELECT N'HoaDon', N'Cập nhật', CAST(i.MaHoaDon AS NVARCHAR(50)), GETDATE()
+    FROM inserted i
+    INNER JOIN deleted d ON i.MaHoaDon = d.MaHoaDon;
+
+    INSERT INTO Audit_Log (TableName, ActionType, KeyInfo, CreatedAt)
+    SELECT N'HoaDon', N'Xoá', CAST(d.MaHoaDon AS NVARCHAR(50)), GETDATE()
+    FROM deleted d;
+END;
+GO
