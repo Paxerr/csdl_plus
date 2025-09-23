@@ -1,6 +1,7 @@
-﻿
+﻿create database quanLiDatPhong
+go
 
-use quanLiDatHang
+use quanLiDatPhong
 go
 
 --create table & index
@@ -2111,18 +2112,90 @@ INSERT INTO DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai)
 
 
 --Stored Procedure
-
+create proc sp_DatPhong(
+    @MaKhachHang INT,
+    @MaPhong INT,
+    @NgayDat DATETIME,
+    @NgayTra DATETIME,
+    @MaHoaDon INT,
+    @DatCoc DECIMAL(18,2) = 0,
+    @TrangThai NVARCHAR(50) = 'Đã đặt'
+)
+as
+begin
+    insert into DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai) VALUES (@MaKhachHang, @MaPhong, @NgayDat, @NgayTra, @DatCoc, @TrangThai)
+end
 
 
 
 
 --Function
+CREATE FUNCTION fn_TinhTienDatPhong(@MaHoaDon INT)
+RETURNS DECIMAL(18,2)
+AS
+BEGIN
+    DECLARE @TongHoaDon DECIMAL(18,2);
+    DECLARE @TongCoc DECIMAL(18,2);
 
+    SELECT @TongCoc = ISNULL(SUM(DatCoc),0)
+    FROM DatPhong
+    WHERE MaHoaDon = @MaHoaDon;
+
+    SELECT @TongHoaDon = ISNULL(SUM(
+        P.GiaPhong * 
+        CASE 
+            WHEN DATEDIFF(DAY, DP.NgayDat, DP.NgayTra) = 0 THEN 1
+            ELSE DATEDIFF(DAY, DP.NgayDat, DP.NgayTra)
+        END
+    ),0)
+    FROM DatPhong DP
+    JOIN Phong P ON DP.MaPhong = P.MaPhong
+    WHERE DP.MaHoaDon = @MaHoaDon;
+
+    RETURN (@TongHoaDon - @TongCoc);
+END;
+GO
 
 
 
 
 --Tringger
+CREATE TRIGGER trg_CapNhatTrangThaiPhong
+ON DatPhong
+AFTER INSERT
+AS
+BEGIN
+    UPDATE P
+    SET P.TrangThai = N'Đã Đặt'
+    FROM Phong P
+    INNER JOIN Inserted I ON P.MaPhong = I.MaPhong;
+END
+
+CREATE TRIGGER trg_KiemTraDatTrung
+ON DatPhong
+INSTEAD OF INSERT
+AS
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM DatPhong D
+        JOIN Inserted I ON D.MaPhong = I.MaPhong
+        WHERE 
+          (I.NgayDat BETWEEN D.NgayDat AND D.NgayTra
+           OR I.NgayTra BETWEEN D.NgayDat AND D.NgayTra)
+          AND D.TrangThai IN (N'Đã Đặt', 'Nhận Phòng')
+    )
+    BEGIN
+        RAISERROR (N'Phòng này đã được đặt trong thời gian đó.',16,1);
+        ROLLBACK TRANSACTION;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO DatPhong(MaKhachHang, MaPhong, NgayDat, NgayTra, MaHoaDon, DatCoc, TrangThai)
+        SELECT MaKhachHang, MaPhong, NgayDat, NgayTra, MaHoaDon, DatCoc, TrangThai
+        FROM Inserted;
+    END
+END
 
 
 
