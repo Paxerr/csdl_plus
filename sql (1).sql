@@ -2573,6 +2573,7 @@ BEGIN
 END;
 GO
 
+    
 IF OBJECT_ID(N'dbo.trg_NhatKy_HoaDon', N'TR') IS NOT NULL 
     DROP TRIGGER dbo.trg_NhatKy_HoaDon;
 GO
@@ -2602,5 +2603,6 @@ BEGIN
     WHERE i.MaHoaDon IS NULL;
 END;
 GO
+
 
 
