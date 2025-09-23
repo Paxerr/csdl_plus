@@ -2543,6 +2543,9 @@ GO
 
 
 --Tringger
+IF OBJECT_ID(N'dbo.trg_NhatKy_DatPhong', N'TR') IS NOT NULL 
+    DROP TRIGGER dbo.trg_NhatKy_DatPhong;
+GO
 CREATE TRIGGER dbo.trg_NhatKy_DatPhong
 ON DatPhong
 AFTER INSERT, UPDATE, DELETE
@@ -2570,6 +2573,9 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'dbo.trg_NhatKy_HoaDon', N'TR') IS NOT NULL 
+    DROP TRIGGER dbo.trg_NhatKy_HoaDon;
+GO
 CREATE TRIGGER dbo.trg_NhatKy_HoaDon
 ON HoaDon
 AFTER INSERT, UPDATE, DELETE
@@ -2596,4 +2602,5 @@ BEGIN
     WHERE i.MaHoaDon IS NULL;
 END;
 GO
+
 
