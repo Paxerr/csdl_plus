@@ -2107,12 +2107,12 @@ INSERT INTO DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, MaHoaDon, DatCoc, 
 INSERT INTO DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai) VALUES (435, 402, '2023-05-31', '2023-06-07', 295256.07, 'Đã đặt');
 INSERT INTO DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, MaHoaDon, DatCoc, TrangThai) VALUES (223, 339, '2023-09-30', '2023-10-02', 209, 391800.42, 'Đã đặt');
 INSERT INTO DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai) VALUES (323, 38, '2025-08-03', '2025-08-17', 108316.05, 'Check-in');
-
+GO
 
 
 
 --Stored Procedure
-create proc sp_DatPhong(
+CREATE PROCEDURE sp_DatPhong
     @MaKhachHang INT,
     @MaPhong INT,
     @NgayDat DATETIME,
@@ -2120,11 +2120,11 @@ create proc sp_DatPhong(
     @MaHoaDon INT,
     @DatCoc DECIMAL(18,2) = 0,
     @TrangThai NVARCHAR(50) = 'Đã đặt'
-)
-as
-begin
-    insert into DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai) VALUES (@MaKhachHang, @MaPhong, @NgayDat, @NgayTra, @DatCoc, @TrangThai)
-end
+AS
+BEGIN
+    INSERT INTO DatPhong (MaKhachHang, MaPhong, NgayDat, NgayTra, DatCoc, TrangThai) VALUES (@MaKhachHang, @MaPhong, @NgayDat, @NgayTra, @DatCoc, @TrangThai)
+END;
+GO
 
 ------------------
 CREATE PROCEDURE sp_ThanhToan
@@ -2179,6 +2179,203 @@ BEGIN
 END;
 GO
 
+------------------
+CREATE PROCEDURE sp_CheckIn
+    @MaDatPhong INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @MaPhong INT, @TrangThai NVARCHAR(50);
+
+        SELECT @MaPhong = MaPhong, @TrangThai = TrangThai
+        FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaPhong IS NULL
+        BEGIN
+            RAISERROR(N'Không tìm thấy đặt phòng.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        IF @TrangThai <> N'Đã đặt'
+        BEGIN
+            RAISERROR(N'Chỉ được check-in khi trạng thái là "Đã đặt". Hiện tại: %s', 16, 1, @TrangThai);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        UPDATE DatPhong
+        SET TrangThai = N'Nhận phòng'
+        WHERE MaDatPhong = @MaDatPhong;
+
+        UPDATE Phong
+        SET TrangThai = N'Đang sử dụng'
+        WHERE MaPhong = @MaPhong;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE PROCEDURE sp_CheckOut
+    @MaDatPhong INT,
+    @PhuongThuc NVARCHAR(50) = N'Tiền mặt'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @MaPhong INT, @MaKhachHang INT, @NgayDat DATETIME, @NgayTra DATETIME, @TrangThai NVARCHAR(50);
+        DECLARE @SoNgay INT, @GiaPhong DECIMAL(18,2), @Tong DECIMAL(18,2), @DatCoc DECIMAL(18,2);
+
+        SELECT @MaPhong = MaPhong, 
+               @MaKhachHang = MaKhachHang, 
+               @NgayDat = NgayDat, 
+               @NgayTra = NgayTra, 
+               @TrangThai = TrangThai, 
+               @DatCoc = DatCoc
+        FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaPhong IS NULL
+        BEGIN
+            RAISERROR(N'Không tìm thấy đặt phòng.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        IF @TrangThai <> N'Nhận phòng'
+        BEGIN
+            RAISERROR(N'Chỉ được check-out khi trạng thái là "Nhận phòng". Hiện tại: %s', 16, 1, @TrangThai);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        SET @SoNgay = DATEDIFF(DAY, @NgayDat, @NgayTra);
+        IF @SoNgay <= 0 SET @SoNgay = 1;
+
+        SELECT @GiaPhong = GiaPhong FROM Phong WHERE MaPhong = @MaPhong;
+        IF @GiaPhong IS NULL SET @GiaPhong = 0;
+        IF @DatCoc IS NULL SET @DatCoc = 0;
+
+        SET @Tong = @GiaPhong * @SoNgay;
+
+        INSERT INTO HoaDon (MaKhachHang, TongHoaDon, TrangThai, PhuongThuc, NgayThanhToan)
+        VALUES (@MaKhachHang, (@Tong - @DatCoc), N'Hoàn tất', @PhuongThuc, GETDATE());
+
+        DECLARE @MaHoaDon INT = SCOPE_IDENTITY();
+
+        UPDATE DatPhong
+        SET MaHoaDon = @MaHoaDon,
+            TrangThai = N'Check-out'
+        WHERE MaDatPhong = @MaDatPhong;
+
+        UPDATE Phong
+        SET TrangThai = N'Trống'
+        WHERE MaPhong = @MaPhong;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+
+CREATE PROCEDURE sp_TinhTongTienHoaDon
+    @MaHoaDon INT,
+    @CapNhat BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @KetQua DECIMAL(18,2) = 0;
+
+    SELECT @KetQua = ISNULL(SUM(
+        P.GiaPhong *
+        CASE WHEN DATEDIFF(DAY, DP.NgayDat, DP.NgayTra) = 0 THEN 1
+             ELSE DATEDIFF(DAY, DP.NgayDat, DP.NgayTra)
+        END
+    ),0) - ISNULL((SELECT SUM(DatCoc) FROM DatPhong WHERE MaHoaDon = @MaHoaDon),0)
+    FROM DatPhong DP
+    JOIN Phong P ON DP.MaPhong = P.MaPhong
+    WHERE DP.MaHoaDon = @MaHoaDon;
+
+    IF @CapNhat = 1
+    BEGIN
+        UPDATE HoaDon SET TongHoaDon = @KetQua WHERE MaHoaDon = @MaHoaDon;
+    END
+
+    SELECT @MaHoaDon AS MaHoaDon, @KetQua AS TongTinhToan;
+END;
+GO
+
+CREATE PROCEDURE sp_HuyDatPhong
+    @MaDatPhong INT,
+    @Force BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @MaPhong INT, @TrangThai NVARCHAR(50), @MaHoaDon INT;
+
+        SELECT @MaPhong = MaPhong, @TrangThai = TrangThai, @MaHoaDon = MaHoaDon
+        FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaPhong IS NULL
+        BEGIN
+            RAISERROR(N'Không tìm thấy đặt phòng.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        IF @TrangThai = N'Nhận phòng' AND @Force = 0
+        BEGIN
+            RAISERROR(N'Không thể hủy khi khách đã nhận phòng. Dùng @Force = 1 để cưỡng chế.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        UPDATE DatPhong
+        SET TrangThai = N'Hủy', MaHoaDon = NULL
+        WHERE MaDatPhong = @MaDatPhong;
+
+        IF @MaHoaDon IS NOT NULL
+        BEGIN
+            UPDATE HoaDon
+            SET TrangThai = N'Hủy'
+            WHERE MaHoaDon = @MaHoaDon;
+        END
+
+        UPDATE Phong
+        SET TrangThai = N'Trống'
+        WHERE MaPhong = @MaPhong
+          AND TrangThai IN (N'Đã đặt', N'Đang sử dụng', N'Nhận phòng');
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+
 --Function
 CREATE FUNCTION fn_TinhTienDatPhong(@MaHoaDon INT)
 RETURNS DECIMAL(18,2)
@@ -2207,7 +2404,6 @@ END;
 GO
 
 ------------
-
 CREATE FUNCTION fn_KiemTraPhongTrong(@MaPhong INT)
 RETURNS NVARCHAR(50)
 AS
@@ -2298,6 +2494,7 @@ GO
 
 
 --Function
+
 
 
 
