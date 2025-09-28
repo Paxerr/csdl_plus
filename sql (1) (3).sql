@@ -2206,10 +2206,11 @@ BEGIN
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ROLLBACK TRANSACTION;
         THROW;
     END CATCH
 END;
+GO
 
 
 CREATE PROCEDURE sp_CheckOut
@@ -2238,11 +2239,11 @@ BEGIN
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ROLLBACK TRANSACTION;
         THROW;
     END CATCH
 END;
-
+GO
 
 
 CREATE PROCEDURE sp_TinhTongTienHoaDon
@@ -2360,7 +2361,8 @@ BEGIN
     SET P.TrangThai = N'Đã Đặt'
     FROM Phong P
     INNER JOIN Inserted I ON P.MaPhong = I.MaPhong;
-END
+END;
+GO
 
 CREATE TRIGGER trg_KiemTraDatTrung
 ON DatPhong
@@ -2386,7 +2388,8 @@ BEGIN
         SELECT MaKhachHang, MaPhong, NgayDat, NgayTra, MaHoaDon, DatCoc, TrangThai
         FROM Inserted;
     END
-END
+END;
+GO
 
 
 --------------
@@ -2426,4 +2429,5 @@ GO
 
 
 --Tringger
+
 
