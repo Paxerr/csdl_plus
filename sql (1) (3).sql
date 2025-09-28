@@ -2185,31 +2185,18 @@ CREATE PROCEDURE sp_CheckIn
 AS
 BEGIN
     SET NOCOUNT ON;
+
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        DECLARE @MaPhong INT, @TrangThai NVARCHAR(50);
+        DECLARE @MaPhong INT;
 
-        SELECT @MaPhong = MaPhong, @TrangThai = TrangThai
+        SELECT @MaPhong = MaPhong
         FROM DatPhong
         WHERE MaDatPhong = @MaDatPhong;
 
-        IF @MaPhong IS NULL
-        BEGIN
-            RAISERROR(N'Không tìm thấy đặt phòng.', 16, 1);
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END
-
-        IF @TrangThai <> N'Đã đặt'
-        BEGIN
-            RAISERROR(N'Chỉ được check-in khi trạng thái là "Đã đặt". Hiện tại: %s', 16, 1, @TrangThai);
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END
-
         UPDATE DatPhong
-        SET TrangThai = N'Nhận phòng'
+        SET TrangThai = N'Check in'
         WHERE MaDatPhong = @MaDatPhong;
 
         UPDATE Phong
@@ -2223,60 +2210,25 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
+
 
 CREATE PROCEDURE sp_CheckOut
-    @MaDatPhong INT,
-    @PhuongThuc NVARCHAR(50) = N'Tiền mặt'
+    @MaDatPhong INT
 AS
 BEGIN
     SET NOCOUNT ON;
+
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        DECLARE @MaPhong INT, @MaKhachHang INT, @NgayDat DATETIME, @NgayTra DATETIME, @TrangThai NVARCHAR(50);
-        DECLARE @SoNgay INT, @GiaPhong DECIMAL(18,2), @Tong DECIMAL(18,2), @DatCoc DECIMAL(18,2);
+        DECLARE @MaPhong INT;
 
-        SELECT @MaPhong = MaPhong, 
-               @MaKhachHang = MaKhachHang, 
-               @NgayDat = NgayDat, 
-               @NgayTra = NgayTra, 
-               @TrangThai = TrangThai, 
-               @DatCoc = DatCoc
+        SELECT @MaPhong = MaPhong
         FROM DatPhong
         WHERE MaDatPhong = @MaDatPhong;
 
-        IF @MaPhong IS NULL
-        BEGIN
-            RAISERROR(N'Không tìm thấy đặt phòng.', 16, 1);
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END
-
-        IF @TrangThai <> N'Nhận phòng'
-        BEGIN
-            RAISERROR(N'Chỉ được check-out khi trạng thái là "Nhận phòng". Hiện tại: %s', 16, 1, @TrangThai);
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END
-
-        SET @SoNgay = DATEDIFF(DAY, @NgayDat, @NgayTra);
-        IF @SoNgay <= 0 SET @SoNgay = 1;
-
-        SELECT @GiaPhong = GiaPhong FROM Phong WHERE MaPhong = @MaPhong;
-        IF @GiaPhong IS NULL SET @GiaPhong = 0;
-        IF @DatCoc IS NULL SET @DatCoc = 0;
-
-        SET @Tong = @GiaPhong * @SoNgay;
-
-        INSERT INTO HoaDon (MaKhachHang, TongHoaDon, TrangThai, PhuongThuc, NgayThanhToan)
-        VALUES (@MaKhachHang, (@Tong - @DatCoc), N'Hoàn tất', @PhuongThuc, GETDATE());
-
-        DECLARE @MaHoaDon INT = SCOPE_IDENTITY();
-
         UPDATE DatPhong
-        SET MaHoaDon = @MaHoaDon,
-            TrangThai = N'Check-out'
+        SET TrangThai = N'Check-out'
         WHERE MaDatPhong = @MaDatPhong;
 
         UPDATE Phong
@@ -2290,7 +2242,7 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
+
 
 
 CREATE PROCEDURE sp_TinhTongTienHoaDon
@@ -2316,8 +2268,6 @@ BEGIN
     BEGIN
         UPDATE HoaDon SET TongHoaDon = @KetQua WHERE MaHoaDon = @MaHoaDon;
     END
-
-    SELECT @MaHoaDon AS MaHoaDon, @KetQua AS TongTinhToan;
 END;
 GO
 
@@ -2335,31 +2285,6 @@ BEGIN
         SELECT @MaPhong = MaPhong, @TrangThai = TrangThai, @MaHoaDon = MaHoaDon
         FROM DatPhong
         WHERE MaDatPhong = @MaDatPhong;
-
-        IF @MaPhong IS NULL
-        BEGIN
-            RAISERROR(N'Không tìm thấy đặt phòng.', 16, 1);
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END
-
-        IF @TrangThai = N'Nhận phòng' AND @Force = 0
-        BEGIN
-            RAISERROR(N'Không thể hủy khi khách đã nhận phòng. Dùng @Force = 1 để cưỡng chế.', 16, 1);
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END
-
-        UPDATE DatPhong
-        SET TrangThai = N'Hủy', MaHoaDon = NULL
-        WHERE MaDatPhong = @MaDatPhong;
-
-        IF @MaHoaDon IS NOT NULL
-        BEGIN
-            UPDATE HoaDon
-            SET TrangThai = N'Hủy'
-            WHERE MaHoaDon = @MaHoaDon;
-        END
 
         UPDATE Phong
         SET TrangThai = N'Trống'
@@ -2501,3 +2426,4 @@ GO
 
 
 --Tringger
+
