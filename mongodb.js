@@ -26,6 +26,15 @@ db.DanhGia.aggregate([
   }
 ])
 
+//Tính tổng doanh thu 
+db.LSGiaoDich.aggregate([
+  {$match : {}},
+  {$group : {
+    _id : null,
+    TongDoanhThu : {$sum : "$TongHoaDon"}
+  }}
+])
 
 //end
+
 
