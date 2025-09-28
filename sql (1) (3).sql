@@ -2286,13 +2286,16 @@ BEGIN
         FROM DatPhong
         WHERE MaDatPhong = @MaDatPhong;
 
+        IF @TrangThai = N'Check in' 
+        BEGIN
+            RAISERROR(N'Không thể hủy khi khách đã nhận phòng', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+            
         UPDATE DatPhong
         SET TrangThai = N'Hủy'
         WHERE MaDatPhong = @MaDatPhong;
-
-        UPDATE Phong
-        SET TrangThai = N'Trống'
-        WHERE MaPhong = @MaPhong;
 
         COMMIT TRANSACTION;
     END TRY
@@ -2425,6 +2428,7 @@ GO
 
 
 --Tringger
+
 
 
 
