@@ -473,6 +473,64 @@ db.LSGiaoDich.aggregate([
   }}
 ])
 
+// Thống kê doanh thu theo phương thức thanh toán
+db.HoaDon.aggregate([
+  {
+    $group: {
+      _id: "$PhuongThuc",
+      tongDoanhThu: { $sum: "$TongHoaDon" },
+      soHoaDon: { $count: {} }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      PhuongThuc: "$_id",
+      tongDoanhThu: 1,
+      soHoaDon: 1
+    }
+  }
+])
+
+//Thống kê doanh thu theo loại phòng
+db.DatPhong.aggregate([
+  {
+    $lookup: {
+      from: "HoaDon",
+      localField: "MaHoaDon",
+      foreignField: "_id",
+      as: "hoaDon"
+    }
+  },
+  { $unwind: "$hoaDon" },
+
+  {
+    $lookup: {
+      from: "Phong",
+      localField: "MaPhong",
+      foreignField: "_id",
+      as: "phong"
+    }
+  },
+  { $unwind: "$phong" },
+
+  {
+    $group: {
+      _id: "$phong.LoaiPhong",
+      tongDoanhThu: { $sum: "$hoaDon.TongHoaDon" },
+      soLanDat: { $count: {} }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      LoaiPhong: "$_id",
+      tongDoanhThu: 1,
+      soLanDat: 1
+    }
+  }
+])
+
 //end
 
 
