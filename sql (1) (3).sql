@@ -2273,33 +2273,36 @@ END;
 GO
 
 CREATE PROCEDURE sp_HuyDatPhong
-    @MaDatPhong INT,
-    @Force BIT = 0
+    @MaDatPhong INT
 AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        DECLARE @MaPhong INT, @TrangThai NVARCHAR(50), @MaHoaDon INT;
+        DECLARE @MaPhong INT;
 
-        SELECT @MaPhong = MaPhong, @TrangThai = TrangThai, @MaHoaDon = MaHoaDon
+        SELECT @MaPhong = MaPhong
         FROM DatPhong
+        WHERE MaDatPhong = @MaDatPhong;
+
+        UPDATE DatPhong
+        SET TrangThai = N'Hủy'
         WHERE MaDatPhong = @MaDatPhong;
 
         UPDATE Phong
         SET TrangThai = N'Trống'
-        WHERE MaPhong = @MaPhong
-          AND TrangThai IN (N'Đã đặt', N'Đang sử dụng', N'Nhận phòng');
+        WHERE MaPhong = @MaPhong;
 
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ROLLBACK TRANSACTION;
         THROW;
     END CATCH
 END;
 GO
+
 
 
 --Function
@@ -2422,6 +2425,7 @@ GO
 
 
 --Tringger
+
 
 
 
