@@ -2129,10 +2129,12 @@ GO
 ------------------
 CREATE PROCEDURE sp_ThanhToan
     @MaKhachHang INT,
+    @DanhSachPhong NVARCHAR(MAX), --(vd: '101,102')
     @PhuongThuc NVARCHAR(50)
 AS
 BEGIN
     SET NOCOUNT ON;
+
     BEGIN TRY
         BEGIN TRANSACTION;
 
@@ -2142,12 +2144,13 @@ BEGIN
         FROM DatPhong dp
         JOIN Phong p ON dp.MaPhong = p.MaPhong
         WHERE dp.MaKhachHang = @MaKhachHang
+          AND dp.MaPhong IN (SELECT value FROM STRING_SPLIT(@DanhSachPhong, ','))
           AND dp.MaHoaDon IS NULL
           AND dp.TrangThai = N'Check-in';
 
         IF @TongHoaDon IS NULL
         BEGIN
-            RAISERROR(N'Khách hàng không có đặt phòng cần thanh toán.', 16, 1);
+            RAISERROR(N'Không có phòng hợp lệ để thanh toán.', 16, 1);
             ROLLBACK TRANSACTION;
             RETURN;
         END
@@ -2161,14 +2164,13 @@ BEGIN
         SET MaHoaDon = @MaHoaDon,
             TrangThai = N'Check-out'
         WHERE MaKhachHang = @MaKhachHang
+          AND MaPhong IN (SELECT value FROM STRING_SPLIT(@DanhSachPhong, ','))
           AND MaHoaDon IS NULL
           AND TrangThai = N'Check-in';
 
         UPDATE Phong
         SET TrangThai = N'Trống'
-        WHERE MaPhong IN (
-            SELECT MaPhong FROM DatPhong WHERE MaHoaDon = @MaHoaDon
-        );
+        WHERE MaPhong IN (SELECT value FROM STRING_SPLIT(@DanhSachPhong, ','));
 
         COMMIT TRANSACTION;
     END TRY
@@ -2178,6 +2180,7 @@ BEGIN
     END CATCH
 END;
 GO
+
 
 ------------------
 CREATE PROCEDURE sp_CheckIn
@@ -2329,25 +2332,35 @@ END;
 GO
 
 ------------
-CREATE FUNCTION fn_KiemTraPhongTrong(@MaPhong INT)
-RETURNS NVARCHAR(50)
+CREATE FUNCTION fn_KiemTraPhongTrong
+(
+    @NgayBatDau DATETIME,
+    @NgayKetThuc DATETIME,
+    @LoaiPhong NVARCHAR(50) = NULL  -- Có thể NULL, nếu NULL thì không lọc theo loại phòng
+)
+RETURNS TABLE
 AS
-BEGIN
-    DECLARE @Result NVARCHAR(50);
-
-    IF EXISTS (
-        SELECT 1
-        FROM Phong
-        WHERE MaPhong = @MaPhong
-          AND TrangThai = N'Trống'
-    )
-        SET @Result = N'Phòng đang trống';
-    ELSE
-        SET @Result = N'Phòng không trống';
-
-    RETURN @Result;
-END;
+RETURN
+(
+    SELECT p.MaPhong, p.LoaiPhong, p.GiaPhong, p.MoTa
+    FROM Phong p
+    WHERE p.TrangThai = N'Trống'
+      AND NOT EXISTS (
+            SELECT 1
+            FROM DatPhong dp
+            WHERE dp.MaPhong = p.MaPhong
+              AND dp.TrangThai IN (N'Đã đặt', N'Check-in')
+              AND (
+                    (@NgayBatDau BETWEEN dp.NgayDat AND dp.NgayTra)
+                 OR (@NgayKetThuc BETWEEN dp.NgayDat AND dp.NgayTra)
+                 OR (dp.NgayDat BETWEEN @NgayBatDau AND @NgayKetThuc)
+                 OR (dp.NgayTra BETWEEN @NgayBatDau AND @NgayKetThuc)
+              )
+      )
+      AND (@LoaiPhong IS NULL OR p.LoaiPhong = @LoaiPhong)
+);
 GO
+
 
 
 --Tringger
