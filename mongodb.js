@@ -1,7 +1,7 @@
-//tạo collections + index
+//tạo collections +  chen data  + index
 
 
-//Chèn data
+
 
 
 
@@ -36,5 +36,6 @@ db.LSGiaoDich.aggregate([
 ])
 
 //end
+
 
 
