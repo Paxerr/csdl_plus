@@ -2303,29 +2303,22 @@ GO
 
 
 --Function
-CREATE FUNCTION fn_TinhTienDatPhong(@MaHoaDon INT)
+CREATE FUNCTION fn_TinhTienDatPhong(@MaPhong INT,@NgayDat DATETIME, @NgayTra DATETIME)
 RETURNS DECIMAL(18,2)
 AS
 BEGIN
     DECLARE @TongHoaDon DECIMAL(18,2);
-    DECLARE @TongCoc DECIMAL(18,2);
-
-    SELECT @TongCoc = ISNULL(SUM(DatCoc),0)
-    FROM DatPhong
-    WHERE MaHoaDon = @MaHoaDon;
 
     SELECT @TongHoaDon = ISNULL(SUM(
         P.GiaPhong * 
         CASE 
-            WHEN DATEDIFF(DAY, DP.NgayDat, DP.NgayTra) = 0 THEN 1
-            ELSE DATEDIFF(DAY, DP.NgayDat, DP.NgayTra)
+            WHEN DATEDIFF(DAY, @NgayDat, @NgayTra) = 0 THEN 1
+            ELSE DATEDIFF(DAY, @NgayDat, @NgayTra)
         END
     ),0)
-    FROM DatPhong DP
-    JOIN Phong P ON DP.MaPhong = P.MaPhong
-    WHERE DP.MaHoaDon = @MaHoaDon;
-
-    RETURN (@TongHoaDon - @TongCoc);
+    FROM Phong P
+    Where MaPhong = @MaPhong
+    RETURN @TongHoaDon
 END;
 GO
 
@@ -2429,5 +2422,6 @@ GO
 
 
 --Tringger
+
 
 
