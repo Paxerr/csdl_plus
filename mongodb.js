@@ -433,20 +433,24 @@ db.DanhGia.aggregate([
   {
     $group: {
       _id: "$LoaiPhong",
-      DiemTrungBinh: { $avg: "$Diem" }
+      DiemTrungBinh: {
+        $avg: {
+          $cond: [
+            { $eq: ["$LoaiDanhGia", "tốt"] }, 5,
+            { $cond: [
+              { $eq: ["$LoaiDanhGia", "trung bình"] }, 3, 1
+            ]}
+          ]
+        }
+      }
     }
   }
 ])
 
+
 // Thống kê số lượng đánh giá theo mức độ 
 db.DanhGia.aggregate([
-  {
-    $bucket: {
-      groupBy: "$Diem",
-      boundaries: [0, 2, 4, 6],   
-      output: { SoLuong: { $sum: 1 } }
-    }
-  }
+  { $group: { _id: "$LoaiDanhGia", SoLuong: { $sum: 1 } } }
 ])
 
 //Đưa ra đánh giá theo loại    
@@ -534,6 +538,7 @@ db.DatPhong.aggregate([
 ])
 
 //end
+
 
 
 
