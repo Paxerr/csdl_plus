@@ -1,4 +1,6 @@
 //tạo collections +  chen data  + index
+
+use quanLiDatPhong
 db.LSGiaoDich.insertMany([
 { MaGiaoDich: "GD0001", MaKhachHang: "KH0001", TongHoaDon: NumberDecimal("1500000.00"), PTThanhToan: "Tiền mặt", NgayThanhToan: ISODate("2025-08-01T10:15:00Z"), TrangThai: "Hoàn tất", DSDatPhong: [{ MaDatPhong: "DP0001", MaPhong: "MP0001" }] },
 { MaGiaoDich: "GD0002", MaKhachHang: "KH0002", TongHoaDon: NumberDecimal("2300000.00"), PTThanhToan: "Chuyển khoản", NgayThanhToan: ISODate("2025-07-15T09:00:00Z"), TrangThai: "Hoàn tất", DSDatPhong: [{ MaDatPhong: "DP0002", MaPhong: "MP0002" }] },
@@ -532,6 +534,7 @@ db.DatPhong.aggregate([
 ])
 
 //end
+
 
 
 
