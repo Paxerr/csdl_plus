@@ -476,12 +476,13 @@ db.LSGiaoDich.aggregate([
 ])
 
 // Thống kê doanh thu theo phương thức thanh toán
-db.HoaDon.aggregate([
+db.LSGiaoDich.aggregate([
+  { $match: { TrangThai: "Hoàn tất" } },
   {
     $group: {
-      _id: "$PhuongThuc",
+      _id: "$PTThanhToan",
       tongDoanhThu: { $sum: "$TongHoaDon" },
-      soHoaDon: { $count: {} }
+      soHoaDon: { $sum: 1 }
     }
   },
   {
@@ -494,33 +495,16 @@ db.HoaDon.aggregate([
   }
 ])
 
+
 //Thống kê doanh thu theo loại phòng
-db.DatPhong.aggregate([
-  {
-    $lookup: {
-      from: "HoaDon",
-      localField: "MaHoaDon",
-      foreignField: "_id",
-      as: "hoaDon"
-    }
-  },
-  { $unwind: "$hoaDon" },
-
-  {
-    $lookup: {
-      from: "Phong",
-      localField: "MaPhong",
-      foreignField: "_id",
-      as: "phong"
-    }
-  },
-  { $unwind: "$phong" },
-
+db.LSGiaoDich.aggregate([
+  { $match: { TrangThai: "Hoàn tất" } },
+  { $unwind: "$DSDatPhong" },
   {
     $group: {
-      _id: "$phong.LoaiPhong",
-      tongDoanhThu: { $sum: "$hoaDon.TongHoaDon" },
-      soLanDat: { $count: {} }
+      _id: "$DSDatPhong.LoaiPhong",
+      tongDoanhThu: { $sum: "$DSDatPhong.TongTien" },
+      soLanDat: { $sum: 1 }
     }
   },
   {
@@ -532,6 +516,7 @@ db.DatPhong.aggregate([
     }
   }
 ])
+
 
 //end
 
