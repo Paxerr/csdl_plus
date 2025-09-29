@@ -2309,6 +2309,18 @@ BEGIN
 END;
 GO
 
+------------
+CREATE PROCEDURE sp_TimPhongTheoMaKH
+    @MaKhachHang INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT MaPhong, TrangThai, NgayDat, NgayTra
+    FROM DatPhong
+    WHERE MaKhachHang = @MaKhachHang;
+END;
+GO
 
 
 --Function
@@ -2461,6 +2473,7 @@ GO
 
 
 --Tringger
+
 
 
 
