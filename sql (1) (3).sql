@@ -2312,6 +2312,26 @@ GO
 
 
 --Function
+Create FUNCTION fn_TimKiemLoaiPhong
+(
+    @MaPhong INT = NULL,
+    @LoaiPhong NVARCHAR(50) = NULL,
+    @GiaPhong DECIMAL(18,2) = NULL
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT *
+    FROM Phong
+    WHERE
+        (@MaPhong IS NULL OR MaPhong = @MaPhong)
+        AND (@LoaiPhong IS NULL OR LoaiPhong = @LoaiPhong)
+        AND (@GiaPhong IS NULL OR GiaPhong <= @GiaPhong)
+);
+
+
+    
 CREATE FUNCTION fn_TinhTienDatPhong(@MaPhong INT,@NgayDat DATETIME, @NgayTra DATETIME)
 RETURNS DECIMAL(18,2)
 AS
@@ -2441,6 +2461,7 @@ GO
 
 
 --Tringger
+
 
 
 
