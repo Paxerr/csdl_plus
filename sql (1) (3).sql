@@ -2112,6 +2112,23 @@ GO
 
 
 --Stored Procedure
+create proc sp_ThemKhachHang
+(
+    @TenKhachHang NVARCHAR(100),
+    @HoKhachHang NVARCHAR(100),
+    @SoDienThoai VARCHAR(20),
+    @Email VARCHAR(100),
+    @MaCccd VARCHAR(50),
+    @NgayTao DATETIME = null
+)
+as 
+begin
+    set nocount on
+    set @NgayTao = getdate()
+    insert into KhachHang(TenKhachHang, HoKhachHang, SoDienThoai, Email, MaCccd, NgayTao) values (@TenKhachHang, @HoKhachHang, @SoDienThoai,@Email, @MaCccd, @NgayTao)
+end
+
+    
 CREATE PROCEDURE sp_DatPhong
     @MaKhachHang INT,
     @MaPhong INT,
@@ -2455,26 +2472,6 @@ BEGIN
     );
 END;
 GO
-
-
-
-
---Stored Procedure
-
-
-
-
-
---Function
-
-
-
-
-
-
---Tringger
-
-
 
 
 
